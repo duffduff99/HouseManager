@@ -168,3 +168,7 @@ GitHub Actions runs HA's `hassfest` validator, HACS validation and the tests on 
 which catches Home Assistant changes that break the integration.
 
 See [docs/DESIGN.md](docs/DESIGN.md) for the design decisions.
+
+## License
+
+[MIT](LICENSE)
