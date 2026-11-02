@@ -147,8 +147,9 @@ custom_components/house_manager/
     lit.js         vendored Lit 3.2.1 (unmodified bundle)
 ```
 
-**There is no frontend build step.** Edit a `.js` file, then hard-refresh the browser. (If the HA app
-caches an old version, bump `VERSION` in `const.py` and `manifest.json`.)
+**There is no frontend build step.** Edit a `.js` file, then hard-refresh the browser. The frontend is
+served from a versioned URL (`/house_manager_static/<version>/`), so bump `VERSION` in `const.py` and
+`manifest.json` for each release; that guarantees browsers and the HA app load the new files.
 
 Run the tests (Python 3.13):
 
