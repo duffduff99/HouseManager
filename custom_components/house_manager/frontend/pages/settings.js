@@ -28,29 +28,46 @@ class SettingsPage extends LitElement {
   }
 
   _renderNotifications() {
-    const { settings, notify_services: services } = this.model;
+    const { settings, notify_services: services, users } = this.model;
+    const people = settings.people || {};
     const mobile = services.filter((s) => s.startsWith("mobile_app_"));
     const other = services.filter((s) => !s.startsWith("mobile_app_"));
-    const toggleService = (service, on) => {
-      const set = new Set(settings.notify_services);
-      on ? set.add(service) : set.delete(service);
-      this._save({ notify_services: [...set] });
+
+    const serviceBoxes = (selected, onChange) => {
+      const box = (service) => html`<label class="row service">
+        <input
+          type="checkbox"
+          .checked=${selected.includes(service)}
+          @change=${(e) => {
+            const set = new Set(selected);
+            e.target.checked ? set.add(service) : set.delete(service);
+            onChange([...set]);
+          }}
+        />
+        ${service.replace(/^mobile_app_/, "")}
+      </label>`;
+      return html`
+        <div class="services">${mobile.map(box)}</div>
+        ${other.length
+          ? html`<details>
+              <summary class="muted small">Other notify services (${other.length})</summary>
+              <div class="services">${other.map(box)}</div>
+            </details>`
+          : ""}
+      `;
     };
-    const serviceBox = (service) => html`<label class="row">
-      <input
-        type="checkbox"
-        .checked=${settings.notify_services.includes(service)}
-        @change=${(e) => toggleService(service, e.target.checked)}
-      />
-      notify.${service}
-    </label>`;
+
+    const savePerson = (userId, changes) => {
+      const current = people[userId] || { notify_services: [], include_unassigned: true };
+      this._save({ people: { ...people, [userId]: { ...current, ...changes } } });
+    };
 
     return html`
       <div class="card">
         <h2>Daily digest</h2>
         <p class="muted small">
-          Once a day, House Manager sends one notification listing the tasks that appeared since the last
-          digest.
+          Once a day, House Manager sends a notification listing the tasks that appeared since the last
+          digest. Each person gets the tasks assigned to them.
         </p>
         <div class="stack">
           <label class="row">
@@ -77,17 +94,38 @@ class SettingsPage extends LitElement {
             />
             Skip the digest on days with no new tasks
           </label>
-          <div>
-            <div class="muted small">Send to</div>
-            ${mobile.map(serviceBox)}
-            ${other.length
-              ? html`<details>
-                  <summary class="muted small">Other notify services (${other.length})</summary>
-                  ${other.map(serviceBox)}
-                </details>`
-              : ""}
-            ${services.length ? "" : html`<div class="empty">No notify services found. Install the HA companion app on your phone.</div>`}
-          </div>
+
+          ${services.length
+            ? html`
+                ${users.map((user) => {
+                  const person = people[user.id] || { notify_services: [], include_unassigned: true };
+                  return html`<div class="recipient">
+                    <div class="name">${user.name}</div>
+                    <div class="muted small">Send their tasks to:</div>
+                    ${serviceBoxes(person.notify_services, (list) =>
+                      savePerson(user.id, { notify_services: list })
+                    )}
+                    <label class="row small">
+                      <input
+                        type="checkbox"
+                        .checked=${person.include_unassigned !== false}
+                        @change=${(e) => savePerson(user.id, { include_unassigned: e.target.checked })}
+                      />
+                      Also include tasks that aren't assigned to anyone
+                    </label>
+                  </div>`;
+                })}
+                <div class="recipient">
+                  <div class="name">All tasks</div>
+                  <div class="muted small">
+                    Send every task, whoever it's assigned to (e.g. a wall tablet):
+                  </div>
+                  ${serviceBoxes(settings.notify_services, (list) => this._save({ notify_services: list }))}
+                </div>
+              `
+            : html`<div class="empty">
+                No notify services found. Install the HA companion app on your phone.
+              </div>`}
           <div class="row">
             <button @click=${this._testDigest}>Send digest now</button>
           </div>
@@ -102,7 +140,11 @@ class SettingsPage extends LitElement {
 
   _testDigest = async () => {
     const result = await this.app.call("send_digest");
-    this.app.toast(result.sent ? "Digest sent." : "No open tasks, so nothing was sent.");
+    this.app.toast(
+      result.sent
+        ? `Sent ${result.sent} notification${result.sent === 1 ? "" : "s"}.`
+        : "Nothing was sent: no open tasks for anyone with a phone selected."
+    );
   };
 
   _renderCategories() {
@@ -274,6 +316,22 @@ class SettingsPage extends LitElement {
       }
       .stack label.row {
         flex-wrap: nowrap;
+      }
+      .recipient {
+        border: 1px solid var(--divider-color);
+        border-radius: 8px;
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .recipient .name {
+        font-weight: 500;
+      }
+      .services {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 16px;
       }
       input.name {
         width: 100%;

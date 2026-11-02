@@ -114,6 +114,13 @@ export const sharedStyles = css`
     padding: 7px 9px;
     min-width: 0;
   }
+  /* Dropdown lists are drawn by the browser; give them theme colors so they
+     stay readable in dark mode. */
+  select option,
+  select optgroup {
+    background-color: var(--card-background-color, #fff);
+    color: var(--primary-text-color, #212121);
+  }
   input[type="checkbox"] {
     width: 18px;
     height: 18px;
@@ -185,6 +192,10 @@ export const sharedStyles = css`
     background: var(--warning-color, #ffa600);
     color: #000;
   }
+  .chip.skip {
+    background: var(--info-color, #039be5);
+    color: #fff;
+  }
   .chip.ok {
     background: var(--success-color, #43a047);
     color: #fff;
@@ -206,6 +217,11 @@ export const sharedStyles = css`
   .task-list .item .body {
     flex: 1;
     min-width: 0;
+  }
+  .task-list .skip-btn {
+    font-size: 12px;
+    color: var(--secondary-text-color);
+    flex-shrink: 0;
   }
   .task-list .placeholder {
     width: 18px;

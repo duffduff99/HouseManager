@@ -88,6 +88,12 @@ def _register_services(hass: HomeAssistant) -> None:
         except HouseManagerError as err:
             raise HomeAssistantError(str(err)) from err
 
+    async def skip_task(call: ServiceCall) -> None:
+        try:
+            get_manager(hass).skip_task(call.data["task_id"], call.context.user_id)
+        except HouseManagerError as err:
+            raise HomeAssistantError(str(err)) from err
+
     async def create_task(call: ServiceCall) -> ServiceResponse:
         manager = get_manager(hass)
         asset_id = None
@@ -125,6 +131,9 @@ def _register_services(hass: HomeAssistant) -> None:
 
     hass.services.async_register(
         DOMAIN, "complete_task", complete_task, vol.Schema({vol.Required("task_id"): cv.string})
+    )
+    hass.services.async_register(
+        DOMAIN, "skip_task", skip_task, vol.Schema({vol.Required("task_id"): cv.string})
     )
     hass.services.async_register(
         DOMAIN,

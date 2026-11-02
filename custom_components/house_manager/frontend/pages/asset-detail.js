@@ -2,7 +2,7 @@
 
 import { LitElement, html, css } from "../lit.js";
 import { sharedStyles } from "../styles.js";
-import { taskItem } from "../components.js";
+import { resultChip, taskItem } from "../components.js";
 import { define, fmtDate, fmtDateTime, fmtMoney, fmtSize, todayISO } from "../util.js";
 
 const isImage = (attachment) => attachment.content_type?.startsWith("image/") && attachment.content_type !== "image/svg+xml";
@@ -186,9 +186,7 @@ class AssetDetail extends LitElement {
                   <div class="date">${fmtDate(e.entry.date)}</div>
                   <div class="body">
                     <div class="row">
-                      ${e.entry.result === "completed"
-                        ? html`<span class="chip ok">Completed</span>`
-                        : html`<span class="chip">Missed</span>`}
+                      ${resultChip(e.entry.result)}
                       <span>${e.entry.title}</span>
                       ${e.entry.user_id ? html`<span class="muted small">by ${this.model.userName(e.entry.user_id)}</span>` : ""}
                     </div>

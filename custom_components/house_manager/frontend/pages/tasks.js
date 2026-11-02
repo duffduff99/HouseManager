@@ -2,7 +2,7 @@
 
 import { LitElement, html, css } from "../lit.js";
 import { sharedStyles } from "../styles.js";
-import { opt } from "../components.js";
+import { opt, resultChip, taskState } from "../components.js";
 import { define, describeSchedule, fmtDate, fmtDateTime, relativeDay } from "../util.js";
 
 class TasksPage extends LitElement {
@@ -37,7 +37,6 @@ class TasksPage extends LitElement {
     return model.tasks
       .filter((t) => {
         if (this._status === "open" && !(t.enabled && t.status === "open")) return false;
-        if (this._status === "waiting" && !(t.enabled && t.status !== "open" && t.next_due)) return false;
         if (this._status === "finished" && !(t.schedule.type === "once" && t.status === "done")) return false;
         if (this._status === "paused" && t.enabled) return false;
         if (this._assignee && t.assignee !== this._assignee) return false;
@@ -53,6 +52,7 @@ class TasksPage extends LitElement {
         if (this._assignee && h.user_id !== this._assignee) return false;
         if (this._status === "completed" && h.result !== "completed") return false;
         if (this._status === "missed" && h.result !== "missed") return false;
+        if (this._status === "skipped" && h.result !== "skipped") return false;
         return this._matchesCommon(h.asset_id, `${h.title} ${this.model.assetName(h.asset_id)}`);
       })
       .sort((a, b) => b.date.localeCompare(a.date));
@@ -92,14 +92,14 @@ class TasksPage extends LitElement {
               ${this._view === "tasks"
                 ? html`
                     <option value="open">To do</option>
-                    <option value="waiting">Scheduled (not due yet)</option>
                     <option value="finished">Finished one-time tasks</option>
                     <option value="paused">Paused</option>
                     <option value="all">All tasks</option>
                   `
                 : html`
-                    <option value="all">Completed and missed</option>
+                    <option value="all">Everything</option>
                     <option value="completed">Completed</option>
+                    <option value="skipped">Skipped</option>
                     <option value="missed">Missed</option>
                   `}
             </select>
@@ -142,19 +142,12 @@ class TasksPage extends LitElement {
             (t) => html`
               <tr class="clickable" @click=${() => app.openTask(t)}>
                 <td @click=${(e) => e.stopPropagation()}>
-                  ${t.enabled
-                    ? html`<input
-                        type="checkbox"
-                        .checked=${t.status !== "open"}
-                        .disabled=${t.status !== "open" && !t.last_completed}
-                        title=${t.status === "open" ? "Mark as done" : "Mark as not done"}
-                        @change=${() => app.toggleTask(t)}
-                      />`
-                    : html`<span class="chip">Paused</span>`}
+                  ${this._control(t)}
                 </td>
                 <td>
                   ${t.title}
-                  ${t.status === "open" && t.enabled ? html` <span class="chip warn">To do</span>` : ""}
+                  ${taskState(t) === "open" ? html` <span class="chip warn">To do</span>` : ""}
+                  ${taskState(t) === "skipped" ? html` <span class="chip skip">Skipped</span>` : ""}
                 </td>
                 <td>
                   ${t.asset_id
@@ -180,6 +173,28 @@ class TasksPage extends LitElement {
         </table>
       </div>
     `;
+  }
+
+  /** Checkbox / Skip / Undo controls for one row. */
+  _control(t) {
+    const state = taskState(t);
+    if (state === "paused") return html`<span class="chip">Paused</span>`;
+    if (state === "skipped")
+      return html`<button class="flat" title="Undo skip" @click=${() => this.app.call("task/reopen", { item_id: t.id })}>
+        Undo
+      </button>`;
+    if (state === "waiting") return html`<span class="muted" title="Not due yet">◷</span>`;
+    return html`<span class="row nowrap">
+      <input
+        type="checkbox"
+        .checked=${state === "completed"}
+        title=${state === "open" ? "Mark as done" : "Mark as not done"}
+        @change=${() => this.app.toggleTask(t)}
+      />
+      ${state === "open"
+        ? html`<button class="flat small" title="Not this time" @click=${() => this.app.skipTask(t)}>Skip</button>`
+        : ""}
+    </span>`;
   }
 
   _renderHistory() {
@@ -208,11 +223,7 @@ class TasksPage extends LitElement {
                       >`
                     : html`<span class="muted">—</span>`}
                 </td>
-                <td>
-                  ${h.result === "completed"
-                    ? html`<span class="chip ok">Completed</span>`
-                    : html`<span class="chip">Missed</span>`}
-                </td>
+                <td>${resultChip(h.result)}</td>
                 <td class="muted">${model.userName(h.user_id)}</td>
               </tr>
             `
@@ -227,6 +238,9 @@ class TasksPage extends LitElement {
     css`
       .header {
         margin-bottom: 12px;
+      }
+      .nowrap {
+        flex-wrap: nowrap;
       }
       .segmented button {
         border-radius: 0;

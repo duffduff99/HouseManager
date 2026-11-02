@@ -9,6 +9,7 @@ import { sharedStyles } from "./styles.js";
 import { define } from "./util.js";
 import "./pages/overview.js";
 import "./pages/tasks.js";
+import "./pages/schedule.js";
 import "./pages/assets.js";
 import "./pages/asset-detail.js";
 import "./pages/settings.js";
@@ -17,6 +18,7 @@ import "./dialogs.js";
 const TABS = [
   { path: "", label: "Overview" },
   { path: "/tasks", label: "Tasks" },
+  { path: "/schedule", label: "Schedule" },
   { path: "/assets", label: "Assets" },
   { path: "/settings", label: "Settings" },
 ];
@@ -94,7 +96,12 @@ class HouseManagerPanel extends LitElement {
   }
 
   updated(changed) {
-    if (changed.has("hass") && this.hass && !this._unsub && this.isConnected) this._start();
+    if (changed.has("hass") && this.hass) {
+      if (!this._unsub && this.isConnected) this._start();
+      // Native controls (dropdown lists, date pickers) follow this, so they
+      // are readable in dark mode.
+      this.style.colorScheme = this.hass.themes?.darkMode ? "dark" : "light";
+    }
   }
 
   _start() {
@@ -205,6 +212,10 @@ class HouseManagerPanel extends LitElement {
     return this.shadowRoot.querySelector("hm-confirm").ask(options);
   }
 
+  skipTask(task) {
+    return this.call("task/skip", { item_id: task.id });
+  }
+
   toggleTask(task) {
     return this.call(task.status === "open" ? "task/complete" : "task/reopen", {
       item_id: task.id,
@@ -221,7 +232,9 @@ class HouseManagerPanel extends LitElement {
     const path = this._path;
     const active = path.startsWith("/tasks")
       ? "/tasks"
-      : path.startsWith("/assets")
+      : path.startsWith("/schedule")
+        ? "/schedule"
+        : path.startsWith("/assets")
         ? "/assets"
         : path.startsWith("/settings")
           ? "/settings"
@@ -260,6 +273,8 @@ class HouseManagerPanel extends LitElement {
     if (!this._model) return html`<div class="page muted">Loading…</div>`;
     const props = { app: this, model: this._model };
     if (path.startsWith("/tasks")) return html`<hm-tasks-page .app=${props.app} .model=${props.model}></hm-tasks-page>`;
+    if (path.startsWith("/schedule"))
+      return html`<hm-schedule-page .app=${props.app} .model=${props.model}></hm-schedule-page>`;
     if (path.startsWith("/assets/")) {
       return html`<hm-asset-detail
         .app=${props.app}

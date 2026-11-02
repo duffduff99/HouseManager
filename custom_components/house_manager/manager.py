@@ -135,7 +135,12 @@ class HouseManager:
         result = []
         for task in self.tasks.values():
             done = task.get("last_completed")
-            if task["enabled"] and task["status"] == "done" and done:
+            if (
+                task["enabled"]
+                and task["status"] == "done"
+                and done
+                and task.get("last_result") != "skipped"
+            ):
                 if dt_util.parse_datetime(done) >= cutoff:
                     result.append(task)
         return result
@@ -241,16 +246,18 @@ class HouseManager:
                 )
             self._save()
 
-    def _add_history(self, task: dict, result: str, user_id: str | None) -> None:
+    def _add_history(
+        self, task: dict, result: str, user_id: str | None, when: datetime | None = None
+    ) -> None:
         self.data["history"].append(
             {
                 "id": ulid_now(),
                 "task_id": task["id"],
                 "asset_id": task.get("asset_id"),
                 "title": task["title"],
-                "result": result,  # "completed" or "missed"
+                "result": result,  # "completed", "skipped" or "missed"
                 "occurrence": task.get("opened_at"),
-                "date": dt_util.now().isoformat(),
+                "date": (when or dt_util.now()).isoformat(),
                 "user_id": user_id,
             }
         )
@@ -356,18 +363,30 @@ class HouseManager:
 
     @callback
     def complete_task(self, task_id: str, user_id: str | None = None) -> dict:
+        return self._close_task(task_id, "completed", user_id)
+
+    @callback
+    def skip_task(self, task_id: str, user_id: str | None = None) -> dict:
+        """Take a task off the list without doing it this time."""
+        return self._close_task(task_id, "skipped", user_id)
+
+    def _close_task(self, task_id: str, result: str, user_id: str | None) -> dict:
         task = self._get("tasks", task_id)
         if task["status"] != "open":
             return task
-        self._add_history(task, "completed", user_id)
+        now = dt_util.now()
+        self._add_history(task, result, user_id, now)
         task["status"] = "done"
-        task["last_completed"] = dt_util.now().isoformat()
+        # "completed" or "skipped": how the current occurrence was closed.
+        task["last_result"] = result
+        if result == "completed":
+            task["last_completed"] = now.isoformat()
         self._save()
         return task
 
     @callback
     def reopen_task(self, task_id: str) -> dict:
-        """Undo a completion (e.g. un-checking it on the to-do list)."""
+        """Undo a completion or skip (e.g. un-checking it on the to-do list)."""
         task = self._get("tasks", task_id)
         if task["status"] == "open":
             return task
@@ -375,13 +394,22 @@ class HouseManager:
         for index in range(len(history) - 1, -1, -1):
             entry = history[index]
             if entry["task_id"] == task_id:
-                if entry["result"] == "completed" and entry.get("occurrence") == task.get(
-                    "opened_at"
-                ):
+                if entry["result"] in ("completed", "skipped") and entry.get(
+                    "occurrence"
+                ) == task.get("opened_at"):
                     del history[index]
                 break
         task["status"] = "open"
-        task["last_completed"] = None
+        task["last_result"] = None
+        # Last completion is whatever is left in the history.
+        task["last_completed"] = next(
+            (
+                h["date"]
+                for h in reversed(history)
+                if h["task_id"] == task_id and h["result"] == "completed"
+            ),
+            None,
+        )
         if not task.get("opened_at"):
             task["opened_at"] = dt_util.now().isoformat()
         self._save()
@@ -634,29 +662,31 @@ class HouseManager:
             return
         await self.async_send_digest()
 
-    async def async_send_digest(self, force: bool = False) -> bool:
-        """Send the daily summary. Returns True if a notification was sent."""
-        now = dt_util.now()
-        meta = self.data["meta"]
-        last = dt_util.parse_datetime(meta["last_digest"]) if meta.get("last_digest") else None
-        meta["last_digest"] = now.isoformat()
-        meta["last_digest_date"] = now.date().isoformat()
-        self._save()
+    def _digest_recipients(self) -> list[tuple[str | None, list[str], Any]]:
+        """Who gets a digest: (user_id or None, notify services, task filter)."""
+        settings = self.data["settings"]
+        recipients: list[tuple[str | None, list[str], Any]] = []
+        if settings["notify_services"]:
+            # "All tasks" recipients get everything, whoever it's assigned to.
+            recipients.append((None, settings["notify_services"], lambda task: True))
+        for user_id, person in settings["people"].items():
+            if not person.get("notify_services"):
+                continue
+            include_unassigned = person.get("include_unassigned", True)
 
-        open_tasks = self.open_tasks()
-        new_tasks = [
-            t for t in open_tasks if last is None or dt_util.parse_datetime(t["opened_at"]) > last
-        ]
-        if not open_tasks:
-            return False
-        if self.data["settings"]["digest_only_new"] and not new_tasks and not force:
-            return False
+            def for_person(task, user_id=user_id, include_unassigned=include_unassigned):
+                assignee = task.get("assignee")
+                return assignee == user_id or (include_unassigned and not assignee)
 
+            recipients.append((user_id, person["notify_services"], for_person))
+        return recipients
+
+    def _digest_message(self, new_tasks: list[dict], open_tasks: list[dict]) -> tuple[str, str]:
         listed = new_tasks or open_tasks
-        if new_tasks:
-            title = f"{len(new_tasks)} new household task{'s' if len(new_tasks) != 1 else ''}"
-        else:
-            title = f"{len(open_tasks)} open household task{'s' if len(open_tasks) != 1 else ''}"
+        count = len(listed)
+        title = (
+            f"{count} {'new' if new_tasks else 'open'} household task{'s' if count != 1 else ''}"
+        )
         lines = []
         for task in listed[:15]:
             asset = self.asset_name(task.get("asset_id"))
@@ -664,31 +694,65 @@ class HouseManager:
         if len(listed) > 15:
             lines.append(f"…and {len(listed) - 15} more")
         lines.append(f"{len(open_tasks)} open in total.")
-        message = "\n".join(lines)
+        return title, "\n".join(lines)
 
-        self.hass.bus.async_fire(
-            EVENT_DIGEST,
-            {
-                "title": title,
-                "message": message,
-                "new_tasks": [t["title"] for t in new_tasks],
-                "open_tasks": [t["title"] for t in open_tasks],
-            },
-        )
-        for service in self.data["settings"]["notify_services"]:
-            if not self.hass.services.has_service("notify", service):
-                _LOGGER.warning("Notify service notify.%s not found", service)
-                continue
-            await self.hass.services.async_call(
-                "notify",
-                service,
+    async def async_send_digest(self, force: bool = False) -> int:
+        """Send the daily summaries. Returns how many notifications were sent.
+
+        Each person gets the tasks assigned to them (plus unassigned tasks if
+        they chose that); "all tasks" recipients get everything.
+        """
+        now = dt_util.now()
+        meta = self.data["meta"]
+        last = dt_util.parse_datetime(meta["last_digest"]) if meta.get("last_digest") else None
+        meta["last_digest"] = now.isoformat()
+        meta["last_digest_date"] = now.date().isoformat()
+        self._save()
+
+        all_open = self.open_tasks()
+        all_new = [
+            t for t in all_open if last is None or dt_util.parse_datetime(t["opened_at"]) > last
+        ]
+        only_new = self.data["settings"]["digest_only_new"] and not force
+
+        # One event with everything, for people who build their own automations.
+        if all_open and (all_new or not only_new):
+            title, message = self._digest_message(all_new, all_open)
+            self.hass.bus.async_fire(
+                EVENT_DIGEST,
                 {
                     "title": title,
                     "message": message,
-                    "data": {"url": "/house-manager", "clickAction": "/house-manager"},
+                    "new_tasks": [t["title"] for t in all_new],
+                    "open_tasks": [t["title"] for t in all_open],
                 },
             )
-        return True
+
+        sent = 0
+        for user_id, services, wanted in self._digest_recipients():
+            open_tasks = [t for t in all_open if wanted(t)]
+            new_tasks = [t for t in all_new if wanted(t)]
+            if not open_tasks or (only_new and not new_tasks):
+                continue
+            title, message = self._digest_message(new_tasks, open_tasks)
+            for service in services:
+                if not self.hass.services.has_service("notify", service):
+                    _LOGGER.warning("Notify service notify.%s not found", service)
+                    continue
+                await self.hass.services.async_call(
+                    "notify",
+                    service,
+                    {
+                        "title": title,
+                        "message": message,
+                        "data": {"url": "/house-manager", "clickAction": "/house-manager"},
+                    },
+                )
+                sent += 1
+            _LOGGER.debug(
+                "Digest for %s: %d new, %d open", user_id or "all", len(new_tasks), len(open_tasks)
+            )
+        return sent
 
     async def async_remove_all_files(self) -> None:
         """Used when the integration is deleted."""

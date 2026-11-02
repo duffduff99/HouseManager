@@ -20,22 +20,24 @@
 
 ## Data model (`.storage/house_manager.data`)
 
-- `settings`: digest on/off, time, only-when-new, notify services.
+- `settings`: digest on/off, time, only-when-new, `notify_services` (get every task), and `people`
+  `{user_id: {notify_services, include_unassigned}}` (get their own tasks).
 - `categories {id: {name}}`, `locations {id: {name, parent_id}}`.
 - `assets {id: {name, category_id, location_id, manufacturer, model_number, serial_number, description,
   purchase_date, purchase_price, replacement_value, retired_date, attachments[], created, updated}}`.
 - `records {id: {asset_id, date, notes, attachments[]}}`: manual maintenance records.
 - `tasks {id: {title, notes, asset_id, assignee, schedule, enabled, status, opened_at, next_due,
-  last_completed, created}}`. `status` is `open` (on the to-do list) or `done`.
-- `history [{task_id, asset_id, title, result: completed|missed, occurrence, date, user_id}]`: kept
+  last_completed, last_result, created}}`. `status` is `open` (on the to-do list) or `done`;
+  `last_result` says whether the current occurrence was `completed` or `skipped`.
+- `history [{task_id, asset_id, title, result: completed|skipped|missed, occurrence, date, user_id}]`: kept
   forever; the panel loads the last ~13 months up front and an asset's full history on its page.
 
 ## Task lifecycle
 
 ```
-             schedule fires                      user checks it
+             schedule fires                  user checks it or skips it
   done ───────────────────────────▶ open ───────────────────────────▶ done
-   ▲                                  │                                 (history: completed)
+   ▲                                  │                    (history: completed / skipped)
    │                                  │ schedule fires again while open
    └──────────────────────────────────┘ (history: missed, replaced by the new occurrence)
 ```
@@ -48,7 +50,6 @@
 
 ## Possible next steps
 
-- Per-assignee digests (send each person only their tasks).
 - Warranty expiry reminders.
 - A calendar entity showing upcoming tasks.
 - ZIP export that includes attachments.

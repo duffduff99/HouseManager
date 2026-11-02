@@ -8,7 +8,14 @@ A Home Assistant integration for keeping a house maintained:
   info, attached manuals/receipts/photos, and a maintenance history. Exports to CSV for insurance.
 - **A daily digest push notification** listing the tasks that appeared.
 
-It adds a **House Manager** page to the HA sidebar with four tabs: Overview, Tasks, Assets, Settings.
+It adds a **House Manager** page to the HA sidebar with five tabs:
+
+- **Overview**: what's on the list now, what's coming up this week, recently added assets.
+- **Tasks**: today's to-do list with filters, plus a history of everything completed, skipped or missed.
+- **Schedule**: every task and when it next appears, grouped by date, frequency or asset. Use it to
+  review and tidy your maintenance plan.
+- **Assets**: the inventory.
+- **Settings**: notifications, categories, locations, backup.
 
 ## Install
 
@@ -34,6 +41,7 @@ add the integration as in step 4.
 | `sensor.house_maintenance_open_tasks` | Number of open tasks; the `tasks` attribute lists them. |
 | `house_manager.create_task` | Service: add a one-time task (optionally linked to an asset by name, optionally on a future date). |
 | `house_manager.complete_task` | Service: complete a task by ID. |
+| `house_manager.skip_task` | Service: skip a task by ID (off the list until its next date). |
 | `house_manager.send_digest` | Service: send the digest notification now. |
 | `house_manager_task_opened` event | Fired whenever a task appears on the to-do list. |
 | `house_manager_digest` event | Fired with each daily digest (title, message, task lists). |
@@ -51,24 +59,30 @@ Or show just the count, using a tile card with `sensor.house_maintenance_open_ta
 
 ### Notifications
 
-On **House Manager → Settings**, tick the phone(s) under **Send to** (these are the
-`notify.mobile_app_*` services the HA companion app creates) and choose a time. Once a day at that time
-you get **one** notification listing the tasks that appeared since the last digest. For example, your
-Friday tasks arrive as a single push instead of 15. Tapping it opens House Manager. **Send digest now**
-lets you test it.
+On **House Manager → Settings**, choose a time and, for each person, tick their phone(s) (these are the
+`notify.mobile_app_*` services the HA companion app creates). Once a day at that time each person gets
+**one** notification listing the tasks that appeared since the last digest, so your Friday tasks arrive
+as a single push instead of 15. Tapping it opens House Manager.
+
+- Each person's digest contains the tasks **assigned to them**, plus unassigned tasks if "Also include
+  tasks that aren't assigned to anyone" is ticked (on by default).
+- Phones/services under **All tasks** get every task regardless of assignee (useful for a wall tablet).
+- **Send digest now** lets you test it.
 
 ## How tasks work
 
 - A task is either **to do** (on the list) or **done**.
+- **Skip** takes a task off the list without doing it ("no time to vacuum this week"). It comes back at
+  its next scheduled date, shows as *Skipped* in the history, and can be undone.
 - When its schedule comes around, it appears on the list (at midnight; cron schedules at their exact time).
 - If it's still not done when the next occurrence arrives, the old one is logged as **missed** and
-  replaced by the new one. Nothing piles up.
+  replaced by the new one. Nothing piles up. (Skipping is the deliberate version of this.)
 - Tasks can belong to an asset (e.g. "Check softener salt" under the Water Softener) or stand alone
   (e.g. "Vacuum"). An asset's page shows its tasks and every completion/miss, alongside your manual
   maintenance records.
 - **One-time tasks**: use the quick-add box on the Overview, add an item on the HA to-do list, or pick
   "One time" when creating a task.
-- **Assignee** is optional and lists your HA users.
+- **Assignee** is optional and lists your HA users. It decides whose digest a task goes in.
 - Untick **Active** to pause a task (e.g. seasonal chores you're skipping this year).
 
 ### Schedule options
