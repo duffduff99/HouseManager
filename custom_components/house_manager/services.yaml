@@ -4,6 +4,12 @@ complete_task:
       required: true
       selector:
         text:
+skip_task:
+  fields:
+    task_id:
+      required: true
+      selector:
+        text:
 create_task:
   fields:
     title:

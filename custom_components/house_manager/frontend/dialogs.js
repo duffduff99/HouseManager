@@ -247,6 +247,17 @@ class TaskDialog extends BaseDialog {
         </div>
         <div class="actions">
           ${this._task ? html`<button class="danger" @click=${this._delete}>Delete</button>` : ""}
+          ${this._task?.status === "open" && this._task.enabled
+            ? html`<button
+                title="Take it off the list without doing it. It comes back next time."
+                @click=${async () => {
+                  await this.app.skipTask(this._task);
+                  this.close();
+                }}
+              >
+                Skip this time
+              </button>`
+            : ""}
           <span class="spacer"></span>
           <button @click=${() => this.close()}>Cancel</button>
           <button class="primary" @click=${this._save}>Save</button>

@@ -1,7 +1,7 @@
 """Constants for House Manager."""
 
 DOMAIN = "house_manager"
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 STORAGE_KEY = "house_manager.data"
 STORAGE_VERSION = 1
@@ -34,7 +34,11 @@ DEFAULT_SETTINGS = {
     "digest_enabled": True,
     "digest_time": "07:00",
     "digest_only_new": True,
+    # Notify services that get every task, whoever it's assigned to.
     "notify_services": [],
+    # Per HA user: {"notify_services": [...], "include_unassigned": bool}.
+    # Each person's digest has their tasks (and unassigned ones if chosen).
+    "people": {},
 }
 
 # Completed tasks stay visible (checked) on the HA to-do list for this long.

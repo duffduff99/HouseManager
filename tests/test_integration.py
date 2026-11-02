@@ -213,3 +213,78 @@ async def test_schedule_preview(hass, ws, freezer):
     result = await ws("schedule/preview", schedule={"type": "yearly", "dates": ["10-01", "04-01"]})
     assert result["schedule"]["dates"] == ["04-01", "10-01"]
     assert [d[:10] for d in result["next"]] == ["2027-04-01", "2027-10-01", "2028-04-01"]
+
+
+async def test_skip_task(hass, ws, setup_integration):
+    manager = setup_integration
+    task = await ws(
+        "task/save", title="Vacuum", schedule={"type": "weekly", "weekdays": [0]}, open_now=True
+    )
+    await ws("task/complete", item_id=task["id"])
+    await ws("task/reopen", item_id=task["id"])
+    first_done = manager.tasks[task["id"]]["last_completed"]
+    assert first_done is None
+
+    await ws("task/complete", item_id=task["id"])
+    completed_at = manager.tasks[task["id"]]["last_completed"]
+    manager.tasks[task["id"]]["status"] = "open"  # simulate the next occurrence
+
+    skipped = await ws("task/skip", item_id=task["id"])
+    assert skipped["status"] == "done"
+    assert skipped["last_result"] == "skipped"
+    # Skipping doesn't count as doing it.
+    assert skipped["last_completed"] == completed_at
+    assert hass.states.get(SENSOR).state == "0"
+    # Skipped tasks are not shown as checked on the HA to-do list.
+    items = await hass.services.async_call(
+        "todo", "get_items", target={"entity_id": TODO}, blocking=True, return_response=True
+    )
+    assert items[TODO]["items"] == []
+    assert [h["result"] for h in manager.history_for(task_id=task["id"])] == [
+        "completed",
+        "skipped",
+    ]
+
+    # Undo the skip.
+    await ws("task/reopen", item_id=task["id"])
+    assert hass.states.get(SENSOR).state == "1"
+    assert [h["result"] for h in manager.history_for(task_id=task["id"])] == ["completed"]
+    assert manager.tasks[task["id"]]["last_completed"] == completed_at
+
+    await hass.services.async_call(
+        "house_manager", "skip_task", {"task_id": task["id"]}, blocking=True
+    )
+    assert hass.states.get(SENSOR).state == "0"
+
+
+async def test_digest_per_person(hass, ws, freezer):
+    freezer.move_to(dt_util.parse_datetime("2026-11-06T06:00:00-06:00"))
+    travis = await hass.auth.async_create_user("Travis")
+    partner = await hass.auth.async_create_user("Partner")
+    travis_phone = async_mock_service(hass, "notify", "mobile_app_travis")
+    partner_phone = async_mock_service(hass, "notify", "mobile_app_partner")
+    tablet = async_mock_service(hass, "notify", "mobile_app_tablet")
+
+    await ws(
+        "settings/save",
+        digest_time="07:00",
+        notify_services=["mobile_app_tablet"],
+        people={
+            travis.id: {"notify_services": ["mobile_app_travis"], "include_unassigned": True},
+            partner.id: {"notify_services": ["mobile_app_partner"], "include_unassigned": False},
+        },
+    )
+    friday = {"type": "weekly", "weekdays": [4]}
+    await ws("task/save", title="Mow lawn", schedule=friday, assignee=travis.id)
+    await ws("task/save", title="Water plants", schedule=friday, assignee=partner.id)
+    await ws("task/save", title="Vacuum", schedule=friday)
+
+    await tick(hass, freezer, timedelta(hours=1))
+    assert len(travis_phone) == len(partner_phone) == len(tablet) == 1
+    # Travis: own task + unassigned. Partner: only their own. Tablet: everything.
+    assert "Mow lawn" in travis_phone[0].data["message"]
+    assert "Vacuum" in travis_phone[0].data["message"]
+    assert "Water plants" not in travis_phone[0].data["message"]
+    assert partner_phone[0].data["title"] == "1 new household task"
+    assert "Water plants" in partner_phone[0].data["message"]
+    assert tablet[0].data["title"] == "3 new household tasks"

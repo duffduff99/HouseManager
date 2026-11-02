@@ -135,6 +135,11 @@ def ws_task_complete(manager, connection, msg):
     return manager.complete_task(msg["item_id"], connection.user.id)
 
 
+@_command({vol.Required("type"): "house_manager/task/skip", vol.Required("item_id"): str})
+def ws_task_skip(manager, connection, msg):
+    return manager.skip_task(msg["item_id"], connection.user.id)
+
+
 @_command({vol.Required("type"): "house_manager/task/reopen", vol.Required("item_id"): str})
 def ws_task_reopen(manager, connection, msg):
     return manager.reopen_task(msg["item_id"])
@@ -254,6 +259,12 @@ def ws_location_delete(manager, connection, msg):
         vol.Optional("digest_time"): str,
         vol.Optional("digest_only_new"): bool,
         vol.Optional("notify_services"): [str],
+        vol.Optional("people"): {
+            str: {
+                vol.Required("notify_services"): [str],
+                vol.Optional("include_unassigned", default=True): bool,
+            }
+        },
     }
 )
 def ws_settings_save(manager, connection, msg):
@@ -263,7 +274,7 @@ def ws_settings_save(manager, connection, msg):
 @_command({vol.Required("type"): "house_manager/send_digest"})
 def ws_send_digest(manager, connection, msg):
     async def run():
-        return {"sent": await manager.async_send_digest(force=True)}
+        return {"sent": await manager.async_send_digest(force=True)}  # notifications sent
 
     return run()
 
@@ -278,6 +289,7 @@ def async_register(hass: HomeAssistant) -> None:
         ws_task_save,
         ws_task_delete,
         ws_task_complete,
+        ws_task_skip,
         ws_task_reopen,
         ws_asset_save,
         ws_asset_delete,
