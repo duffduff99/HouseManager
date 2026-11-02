@@ -288,3 +288,21 @@ async def test_digest_per_person(hass, ws, freezer):
     assert partner_phone[0].data["title"] == "1 new household task"
     assert "Water plants" in partner_phone[0].data["message"]
     assert tablet[0].data["title"] == "3 new household tasks"
+
+
+async def test_frontend_files_are_served(hass, setup_integration, hass_client):
+    """Every frontend file must load from the versioned static URL."""
+    from pathlib import Path
+
+    from custom_components.house_manager.const import STATIC_URL
+
+    client = await hass_client()
+    frontend = Path(__file__).parent.parent / "custom_components/house_manager/frontend"
+    files = sorted(p.relative_to(frontend).as_posix() for p in frontend.rglob("*.js"))
+    assert "house-manager-panel.js" in files
+    for name in files:
+        resp = await client.get(f"{STATIC_URL}/{name}")
+        assert resp.status == 200, name
+
+    panel = hass.data["frontend_panels"]["house-manager"]
+    assert panel.config["_panel_custom"]["module_url"] == f"{STATIC_URL}/house-manager-panel.js"

@@ -1,7 +1,7 @@
 """Constants for House Manager."""
 
 DOMAIN = "house_manager"
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 STORAGE_KEY = "house_manager.data"
 STORAGE_VERSION = 1
@@ -10,7 +10,9 @@ PANEL_URL_PATH = "house-manager"
 PANEL_TITLE = "House Manager"
 PANEL_ICON = "mdi:hammer-wrench"
 PANEL_ELEMENT = "house-manager-panel"
-STATIC_URL = "/house_manager_static"
+# The version is part of the URL so browsers and the HA app never mix
+# frontend files from different versions after an update.
+STATIC_URL = f"/house_manager_static/{VERSION}"
 
 # Folder (inside the HA config folder) where uploaded files are stored.
 FILES_DIR = "house_manager_files"

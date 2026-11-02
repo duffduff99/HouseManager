@@ -23,7 +23,6 @@ from .const import (
     PANEL_TITLE,
     PANEL_URL_PATH,
     STATIC_URL,
-    VERSION,
 )
 from .manager import HouseManager, HouseManagerError
 
@@ -61,7 +60,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HouseManagerConfigEntry)
         hass,
         frontend_url_path=PANEL_URL_PATH,
         webcomponent_name=PANEL_ELEMENT,
-        module_url=f"{STATIC_URL}/house-manager-panel.js?v={VERSION}",
+        module_url=f"{STATIC_URL}/house-manager-panel.js",
         sidebar_title=PANEL_TITLE,
         sidebar_icon=PANEL_ICON,
         require_admin=False,
