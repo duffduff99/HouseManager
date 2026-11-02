@@ -1,0 +1,23 @@
+complete_task:
+  fields:
+    task_id:
+      required: true
+      selector:
+        text:
+create_task:
+  fields:
+    title:
+      required: true
+      selector:
+        text:
+    notes:
+      selector:
+        text:
+          multiline: true
+    asset:
+      selector:
+        text:
+    date:
+      selector:
+        date:
+send_digest:

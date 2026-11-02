@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "House Manager",
+        "description": "Adds a House Manager page to the sidebar, a 'House Maintenance' to-do list and an open-tasks sensor. Everything else is set up from the House Manager page."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "House Manager is already set up."
+    }
+  },
+  "services": {
+    "complete_task": {
+      "name": "Complete task",
+      "description": "Mark an open House Manager task as done.",
+      "fields": {
+        "task_id": {"name": "Task ID", "description": "The task's ID (shown in the open tasks sensor attributes)."}
+      }
+    },
+    "create_task": {
+      "name": "Create one-time task",
+      "description": "Add a one-time household task.",
+      "fields": {
+        "title": {"name": "Title", "description": "What needs doing."},
+        "notes": {"name": "Notes", "description": "Optional details."},
+        "asset": {"name": "Asset", "description": "Optional name of the asset this task belongs to."},
+        "date": {"name": "Date", "description": "When the task should appear. Leave empty to add it now."}
+      }
+    },
+    "send_digest": {
+      "name": "Send digest now",
+      "description": "Send the open-tasks notification immediately (useful for testing)."
+    }
+  }
+}

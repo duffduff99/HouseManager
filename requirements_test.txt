@@ -1,0 +1,6 @@
+# Test dependencies. These pins match the Home Assistant version the tests were
+# last run against (HA 2026.2.x). To test against a newer HA, bump both together:
+# pytest-homeassistant-custom-component's version maps to an HA release, and
+# home-assistant-frontend must match that HA's frontend/manifest.json.
+pytest-homeassistant-custom-component==0.13.316
+home-assistant-frontend==20260128.6
