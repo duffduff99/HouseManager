@@ -18,11 +18,21 @@ jobs:
   hacs:
     runs-on: ubuntu-latest
     steps:
-      - uses: hacs/action@main
+      # The HACS validator only works on public repositories (and HACS can
+      # only install public repositories), so skip it while this one is private.
+      - name: Check repository visibility
+        id: visibility
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "private=$(gh api repos/${{ github.repository }} --jq .private)" >> "$GITHUB_OUTPUT"
+      - if: steps.visibility.outputs.private == 'false'
+        uses: hacs/action@main
         with:
           category: integration
           # Brand icons and GitHub topics are only needed for the default HACS store.
           ignore: brands topics
+      - if: steps.visibility.outputs.private != 'false'
+        run: echo "::notice::Repository is private; skipped HACS validation."
 
   tests:
     runs-on: ubuntu-latest
