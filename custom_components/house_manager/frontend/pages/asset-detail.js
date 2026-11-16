@@ -1,6 +1,6 @@
 // A single asset: details, attachments, its tasks, and maintenance history.
 
-import { LitElement, html, css } from "../lit.js";
+import { LitElement, html, css, repeat } from "../lit.js";
 import { sharedStyles } from "../styles.js";
 import { resultChip, taskItem } from "../components.js";
 import { define, fmtDate, fmtDateTime, fmtMoney, fmtSize, todayISO } from "../util.js";
@@ -118,7 +118,7 @@ class AssetDetail extends LitElement {
             </h2>
             <div class="task-list">
               ${tasks.length
-                ? tasks.map((t) => taskItem(app, model, t, { showAsset: false }))
+                ? repeat(tasks, (t) => t.id, (t) => taskItem(app, model, t, { showAsset: false }))
                 : html`<div class="empty">No tasks for this asset.</div>`}
             </div>
           </div>

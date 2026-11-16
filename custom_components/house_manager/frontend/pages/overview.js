@@ -1,6 +1,6 @@
 // Overview: open tasks, what's coming up, and recently added assets.
 
-import { LitElement, html, css } from "../lit.js";
+import { LitElement, html, css, repeat } from "../lit.js";
 import { sharedStyles } from "../styles.js";
 import { taskItem } from "../components.js";
 import { define, describeSchedule, fmtDate, fmtMoney, relativeDay, todayISO } from "../util.js";
@@ -44,7 +44,9 @@ class OverviewPage extends LitElement {
             </form>
             <div class="task-list">
               ${open.length
-                ? open.map((t) => taskItem(app, model, t))
+                ? // Keyed by task id so a row never gets reused for a different
+                  // task (which left a ticked checkbox on the next task).
+                  repeat(open, (t) => t.id, (t) => taskItem(app, model, t))
                 : html`<div class="empty">Nothing to do right now 🎉</div>`}
             </div>
           </div>

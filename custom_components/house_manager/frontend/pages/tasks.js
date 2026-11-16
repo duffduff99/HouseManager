@@ -1,6 +1,6 @@
 // Tasks page: every task with filters, plus a history of completed/missed tasks.
 
-import { LitElement, html, css } from "../lit.js";
+import { LitElement, html, css, live, repeat } from "../lit.js";
 import { sharedStyles } from "../styles.js";
 import { opt, resultChip, taskState } from "../components.js";
 import { define, describeSchedule, fmtDate, fmtDateTime, relativeDay } from "../util.js";
@@ -138,7 +138,9 @@ class TasksPage extends LitElement {
             <th class="wide-only">Last done</th>
             ${model.users.length > 1 ? html`<th>Assignee</th>` : ""}
           </tr>
-          ${tasks.map(
+          ${repeat(
+            tasks,
+            (t) => t.id,
             (t) => html`
               <tr class="clickable" @click=${() => app.openTask(t)}>
                 <td @click=${(e) => e.stopPropagation()}>
@@ -187,7 +189,7 @@ class TasksPage extends LitElement {
     return html`<span class="row nowrap">
       <input
         type="checkbox"
-        .checked=${state === "completed"}
+        .checked=${live(state === "completed")}
         title=${state === "open" ? "Mark as done" : "Mark as not done"}
         @change=${() => this.app.toggleTask(t)}
       />

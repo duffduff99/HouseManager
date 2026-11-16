@@ -1,7 +1,7 @@
 """Constants for House Manager."""
 
 DOMAIN = "house_manager"
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 
 STORAGE_KEY = "house_manager.data"
 STORAGE_VERSION = 1

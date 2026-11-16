@@ -1,6 +1,6 @@
 // Small render helpers shared between pages.
 
-import { html } from "./lit.js";
+import { html, live } from "./lit.js";
 import { describeSchedule, fmtDate, relativeDay } from "./util.js";
 
 /** One task with a checkbox. Used on the overview, tasks and asset pages. */
@@ -40,7 +40,7 @@ export function taskItem(app, model, task, { showAsset = true } = {}) {
   if (state === "open" || state === "completed") {
     control = html`<input
       type="checkbox"
-      .checked=${state === "completed"}
+      .checked=${live(state === "completed")}
       title=${state === "completed" ? "Mark as not done" : "Mark as done"}
       @change=${() => app.toggleTask(task)}
     />`;
