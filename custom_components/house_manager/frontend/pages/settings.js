@@ -1,6 +1,6 @@
 // Settings: daily digest notifications, categories, locations, backup export.
 
-import { LitElement, html, css } from "../lit.js";
+import { LitElement, html, css, live } from "../lit.js";
 import { sharedStyles } from "../styles.js";
 import { opt } from "../components.js";
 import { define, downloadFile, todayISO } from "../util.js";
@@ -37,7 +37,7 @@ class SettingsPage extends LitElement {
       const box = (service) => html`<label class="row service">
         <input
           type="checkbox"
-          .checked=${selected.includes(service)}
+          .checked=${live(selected.includes(service))}
           @change=${(e) => {
             const set = new Set(selected);
             e.target.checked ? set.add(service) : set.delete(service);
@@ -73,7 +73,7 @@ class SettingsPage extends LitElement {
           <label class="row">
             <input
               type="checkbox"
-              .checked=${settings.digest_enabled}
+              .checked=${live(settings.digest_enabled)}
               @change=${(e) => this._save({ digest_enabled: e.target.checked })}
             />
             Send a daily digest
@@ -89,7 +89,7 @@ class SettingsPage extends LitElement {
           <label class="row">
             <input
               type="checkbox"
-              .checked=${settings.digest_only_new}
+              .checked=${live(settings.digest_only_new)}
               @change=${(e) => this._save({ digest_only_new: e.target.checked })}
             />
             Skip the digest on days with no new tasks
@@ -108,7 +108,7 @@ class SettingsPage extends LitElement {
                     <label class="row small">
                       <input
                         type="checkbox"
-                        .checked=${person.include_unassigned !== false}
+                        .checked=${live(person.include_unassigned !== false)}
                         @change=${(e) => savePerson(user.id, { include_unassigned: e.target.checked })}
                       />
                       Also include tasks that aren't assigned to anyone

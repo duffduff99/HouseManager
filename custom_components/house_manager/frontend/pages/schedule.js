@@ -1,6 +1,6 @@
 // Schedule page: every task and when it next appears, for keeping the list tidy.
 
-import { LitElement, html, css } from "../lit.js";
+import { LitElement, html, css, repeat } from "../lit.js";
 import { sharedStyles } from "../styles.js";
 import { opt, taskState } from "../components.js";
 import { define, describeSchedule, fmtDate, fmtDateTime, relativeDay } from "../util.js";
@@ -164,7 +164,7 @@ class SchedulePage extends LitElement {
               <th class="wide-only">Last done</th>
               ${showAssignee ? html`<th class="wide-only">Assignee</th>` : ""}
             </tr>
-            ${group.tasks.map((t) => {
+            ${repeat(group.tasks, (t) => t.id, (t) => {
               const state = taskState(t);
               return html`
                 <tr class="clickable" @click=${() => app.openTask(t)}>

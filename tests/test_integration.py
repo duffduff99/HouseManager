@@ -5,12 +5,15 @@ from datetime import timedelta
 import aiohttp
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.core import HomeAssistant
-from homeassistant.util import dt as dt_util
 import pytest
 from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
     async_mock_service,
 )
+
+# Tests that time-travel use @pytest.mark.freeze_time so the clock is frozen
+# *before* House Manager starts its once-a-minute timer; moving the clock
+# afterwards breaks whenever the real date is later than the test date.
 
 TODO = "todo.house_maintenance"
 SENSOR = "sensor.house_maintenance_open_tasks"
@@ -73,10 +76,9 @@ async def test_assets_locations_and_categories(hass, ws):
     assert locations[saved["location_id"]]["name"] == "Basement"
 
 
+@pytest.mark.freeze_time("2026-11-02T10:00:00-06:00")  # Monday 10:00 local time
 async def test_weekly_task_lifecycle(hass, ws, setup_integration, freezer):
     manager = setup_integration
-    # Monday 2026-11-02 10:00 local time
-    freezer.move_to(dt_util.parse_datetime("2026-11-02T10:00:00-06:00"))
     asset = await ws("asset/save", name="Bird Feeder")
     task = await ws(
         "task/save",
@@ -123,8 +125,8 @@ async def test_weekly_task_lifecycle(hass, ws, setup_integration, freezer):
     assert [h["result"] for h in manager.history_for(task_id=task["id"])] == ["missed"]
 
 
+@pytest.mark.freeze_time("2026-11-06T15:00:00-06:00")  # a Friday
 async def test_task_due_today_opens_immediately(hass, ws, freezer):
-    freezer.move_to(dt_util.parse_datetime("2026-11-06T15:00:00-06:00"))  # a Friday
     await ws("task/save", title="Vacuum", schedule={"type": "weekly", "weekdays": [4]})
     assert hass.states.get(SENSOR).state == "1"
 
@@ -144,8 +146,8 @@ async def test_add_item_on_todo_list_creates_one_time_task(hass, ws):
     assert data["tasks"][0]["next_due"] is None
 
 
+@pytest.mark.freeze_time("2026-11-06T06:00:00-06:00")
 async def test_daily_digest(hass, ws, freezer):
-    freezer.move_to(dt_util.parse_datetime("2026-11-06T06:00:00-06:00"))
     calls = async_mock_service(hass, "notify", "mobile_app_phone")
     await ws("settings/save", notify_services=["mobile_app_phone"], digest_time="07:00")
     await ws("task/save", title="Clean bathroom", schedule={"type": "weekly", "weekdays": [4]})
@@ -208,8 +210,8 @@ async def test_data_survives_restart(hass, ws, setup_integration):
     assert [a["name"] for a in data["assets"]] == ["TV"]
 
 
+@pytest.mark.freeze_time("2026-11-02T10:00:00-06:00")
 async def test_schedule_preview(hass, ws, freezer):
-    freezer.move_to(dt_util.parse_datetime("2026-11-02T10:00:00-06:00"))
     result = await ws("schedule/preview", schedule={"type": "yearly", "dates": ["10-01", "04-01"]})
     assert result["schedule"]["dates"] == ["04-01", "10-01"]
     assert [d[:10] for d in result["next"]] == ["2027-04-01", "2027-10-01", "2028-04-01"]
@@ -257,8 +259,8 @@ async def test_skip_task(hass, ws, setup_integration):
     assert hass.states.get(SENSOR).state == "0"
 
 
+@pytest.mark.freeze_time("2026-11-06T06:00:00-06:00")
 async def test_digest_per_person(hass, ws, freezer):
-    freezer.move_to(dt_util.parse_datetime("2026-11-06T06:00:00-06:00"))
     travis = await hass.auth.async_create_user("Travis")
     partner = await hass.auth.async_create_user("Partner")
     travis_phone = async_mock_service(hass, "notify", "mobile_app_travis")
@@ -288,3 +290,21 @@ async def test_digest_per_person(hass, ws, freezer):
     assert partner_phone[0].data["title"] == "1 new household task"
     assert "Water plants" in partner_phone[0].data["message"]
     assert tablet[0].data["title"] == "3 new household tasks"
+
+
+async def test_frontend_files_are_served(hass, setup_integration, hass_client):
+    """Every frontend file must load from the versioned static URL."""
+    from pathlib import Path
+
+    from custom_components.house_manager.const import STATIC_URL
+
+    client = await hass_client()
+    frontend = Path(__file__).parent.parent / "custom_components/house_manager/frontend"
+    files = sorted(p.relative_to(frontend).as_posix() for p in frontend.rglob("*.js"))
+    assert "house-manager-panel.js" in files
+    for name in files:
+        resp = await client.get(f"{STATIC_URL}/{name}")
+        assert resp.status == 200, name
+
+    panel = hass.data["frontend_panels"]["house-manager"]
+    assert panel.config["_panel_custom"]["module_url"] == f"{STATIC_URL}/house-manager-panel.js"
